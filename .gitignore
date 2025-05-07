@@ -174,3 +174,8 @@ cython_debug/
 .pypirc
 
 CLAUDE.md
+
+**/.claude/settings.local.json
+
+
+.zip
