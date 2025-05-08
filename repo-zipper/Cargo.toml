@@ -1,9 +1,20 @@
 [package]
-name = "repo-zipper"
+name = "optimus"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "A CLI tool to zip directories and send them to a server"
+authors = ["Optimus Prime Team"]
+license = "MIT"
+repository = "https://github.com/optimusprime/optimus"
+
+# This enables installation via cargo install
+[[bin]]
+name = "optimus"
+path = "src/main.rs"
 
 [dependencies]
 reqwest = { version = "0.11", features = ["json", "multipart", "blocking"] }
 anyhow = "1.0"
 clap = { version = "4.4", features = ["derive"] }
+zip = "0.6"
+walkdir = "2.3"

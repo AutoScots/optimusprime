@@ -1,0 +1,16 @@
+[Unit]
+Description=Optimus Prime Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/optimus
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5s
+Environment=PORT=3000
+Environment=API_KEY=your-api-key-goes-here
+
+[Install]
+WantedBy=multi-user.target
