@@ -16,7 +16,7 @@ A CLI tool for zipping directories and sending them to a server.
 This method will automatically install Rust, Cargo, and Git if they're not already installed:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/refs/heads/main/install.sh | bash
 ```
 
 ### Using cargo
@@ -48,7 +48,7 @@ optimus send --help
 ```
 
 - `--api-key <KEY>`: API key for authentication (can also be set via OPTIMUS_API_KEY env var)
-- `--endpoint <URL>`: Endpoint to send the zip file to (default: http://localhost:3000/submit)
+- `--endpoint <URL>`: Endpoint to send the zip file to (default: <http://localhost:3000/submit>)
 - `--compression <LEVEL>`: Compression level (0-9, default: 6)
 
 ## Example
