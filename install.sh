@@ -93,8 +93,8 @@ echo -e "${BLUE}Created temporary directory: ${TMP_DIR}${NC}"
 
 # Clone the repository
 echo -e "${BLUE}Cloning Optimus repository...${NC}"
-git clone --depth 1 https://github.com/optimusprime/optimus.git "$TMP_DIR/optimus"
-cd "$TMP_DIR/optimus"
+git clone --depth 1 https://github.com/AutoScots/optimusprime.git "$TMP_DIR/optimus"
+cd "$TMP_DIR/optimus/repo-zipper"
 
 # Build and install
 echo -e "${BLUE}Building and installing Optimus...${NC}"
@@ -112,6 +112,6 @@ if command -v optimus &> /dev/null; then
     echo -e "${BLUE}Don't forget to set your API key:${NC}"
     echo -e "${GREEN}export OPTIMUS_API_KEY=\"your-api-key\"${NC}"
 else
-    echo -e "${RED}❌ Installation failed. Please try installing manually with 'cargo install --git https://github.com/optimusprime/optimus.git'${NC}"
+    echo -e "${RED}❌ Installation failed. Please try installing manually with 'cargo install --git https://github.com/AutoScots/optimusprime.git'${NC}"
     exit 1
 fi

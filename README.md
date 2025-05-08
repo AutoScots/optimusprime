@@ -16,7 +16,7 @@ A CLI tool for zipping directories and sending them to a server.
 This method will automatically install Rust, Cargo, and Git if they're not already installed:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/optimusprime/optimus/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/install.sh | bash
 ```
 
 ### Using cargo
@@ -24,7 +24,7 @@ curl -sSL https://raw.githubusercontent.com/optimusprime/optimus/main/install.sh
 If you already have Rust and Cargo installed, you can install Optimus directly:
 
 ```bash
-cargo install --git https://github.com/optimusprime/optimus.git
+cargo install --git https://github.com/AutoScots/optimusprime.git
 ```
 
 ## Usage

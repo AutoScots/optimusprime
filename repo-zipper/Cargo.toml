@@ -5,7 +5,7 @@ edition = "2021"
 description = "A CLI tool to zip directories and send them to a server"
 authors = ["Optimus Prime Team"]
 license = "MIT"
-repository = "https://github.com/optimusprime/optimus"
+repository = "https://github.com/AutoScots/optimusprime"
 
 # This enables installation via cargo install
 [[bin]]
