@@ -11,6 +11,7 @@ Restart=on-failure
 RestartSec=5s
 Environment=PORT=3000
 Environment=API_KEY=your-api-key-goes-here
+Environment=DEFAULT_FORMAT=repo
 
 [Install]
 WantedBy=multi-user.target
