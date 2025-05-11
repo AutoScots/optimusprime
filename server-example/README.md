@@ -1,6 +1,6 @@
 # Optimus Server Example
 
-This is a simple Node.js server example that can receive zip files sent by the Optimus CLI tool. It includes an endpoint to check required format for zipping files.
+This is a Node.js server example that can receive zip files sent by the Optimus CLI tool. It includes competition tracking, attempt limits, and format specifications.
 
 ## Installation
 
@@ -55,16 +55,21 @@ sudo systemctl status optimus-server
 
 ### GET /check
 
-Checks with the server to determine the required format for zipping files.
+Checks with the server to determine the required format for zipping files and get remaining attempts.
 
 Headers:
 - `Authorization: Bearer <API_KEY>`
 
+Query Parameters:
+- `competition` - (Optional) The competition ID to check
+
 Returns:
 ```json
 {
-  "required_format": "repo", // or "py"
-  "last_submission_by_user": 1620000000 // timestamp in seconds, null if no previous submission
+  "required_format": "repo", 
+  "remaining_attempts": 3,
+  "last_submission_by_user": 1620000000,
+  "competition_name": "Demo Competition"
 }
 ```
 
@@ -74,9 +79,11 @@ Returns:
 
 ### POST /submit
 
-Submits a zip file to the server.
+Submits a zip file to the server for a competition.
 
-Expects a multipart form with a file field containing the zip archive.
+Expects a multipart form with:
+- `file` - The zip archive to submit
+- `competition` - (Optional) The competition ID for this submission
 
 Headers:
 - `Authorization: Bearer <API_KEY>`
@@ -85,16 +92,52 @@ Returns:
 ```json
 {
   "message": "File received successfully",
-  "filename": "1620000000-archive.zip",
+  "filename": "1620000000-user-archive.zip",
   "size": 1024,
-  "timestamp": 1620000000000
+  "timestamp": 1620000000000,
+  "competition": "competition-123",
+  "attempts_remaining": 2
 }
 ```
 
 - 200 OK with details about the received file
 - 400 Bad Request if no file was uploaded
 - 401 Unauthorized if the Authorization header is missing
-- 403 Forbidden if the API key is invalid
+- 403 Forbidden if the API key is invalid or no attempts remaining
+
+### GET /competitions
+
+Lists available competitions.
+
+Headers:
+- `Authorization: Bearer <API_KEY>`
+
+Returns:
+```json
+{
+  "competitions": [
+    {
+      "id": "competition-123",
+      "name": "Demo Competition",
+      "max_attempts": 3
+    },
+    {
+      "id": "competition-456",
+      "name": "Advanced Competition",
+      "max_attempts": 5
+    }
+  ]
+}
+```
+
+## Competition System
+
+The server tracks user submissions per competition:
+
+1. Each competition has a maximum number of submission attempts
+2. Users must specify the competition ID when submitting files
+3. The server tracks remaining attempts per user per competition
+4. Submissions are rejected when a user has no attempts remaining
 
 ## Format Types
 
@@ -102,3 +145,5 @@ The server provides different zip packaging requirements:
 
 - `repo`: Full repository zipping (includes all files except exclusions like .git)
 - `py`: Python-focused zipping (only includes Python files and Python project files)
+
+Different competitions may require different formats. The format required is specified by the server's response to the /check endpoint.

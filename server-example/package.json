@@ -1,7 +1,7 @@
 {
   "name": "optimus-server",
   "version": "1.0.0",
-  "description": "Server for receiving Optimus zip uploads",
+  "description": "Competition submission server for Optimus Prime with attempt tracking",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

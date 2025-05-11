@@ -13,5 +13,8 @@ Environment=PORT=3000
 Environment=API_KEY=your-api-key-goes-here
 Environment=DEFAULT_FORMAT=repo
 
+# Optional: Set default maximum attempts for competitions
+# Environment=MAX_ATTEMPTS=3
+
 [Install]
 WantedBy=multi-user.target
