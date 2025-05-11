@@ -11,32 +11,37 @@ A CLI tool for zipping directories and sending them to a server.
 
 ## Installation
 
-### Using curl (recommended)
+### Recommended Installation Method
 
-This method will automatically install Rust and Cargo if they're not already installed:
-
-```bash
-# For main branch
-curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/direct-install.sh | bash
-
-# If the above command doesn't work, try:
-curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/master/direct-install.sh | bash
-```
-
-#### Alternative Install
-
-If you encounter any issues with the direct installation, try this command instead:
-
-```bash 
-cargo install --git https://github.com/AutoScots/optimusprime.git --branch main --path repo-zipper
-```
-
-### Using cargo
-
-If you already have Rust and Cargo installed, you can install Optimus directly:
+The standard installation script automatically fixes compatibility issues and installs Optimus Prime:
 
 ```bash
-cargo install --git https://github.com/AutoScots/optimusprime.git --path repo-zipper
+# Download and run the install script
+curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/install.sh | bash
+```
+
+### Alternative Installation Methods
+
+#### Clone and Install Locally
+
+If you prefer to clone the repository first:
+
+```bash
+git clone --depth 1 https://github.com/AutoScots/optimusprime.git
+cd optimusprime
+./install.sh
+```
+
+#### Legacy Installation Methods
+
+These methods may encounter compatibility issues and are not recommended:
+
+```bash
+# Legacy GitHub installation (may require fixes)
+curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/install-github-legacy.sh | bash
+
+# Legacy local installation (may require fixes)
+curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/install-legacy.sh | bash
 ```
 
 ## Usage

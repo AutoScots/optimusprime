@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use reqwest::blocking::{Client, multipart};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::env;
 use std::fs::File;
-use std::io::{Read, Write, copy};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
@@ -28,7 +28,7 @@ enum Commands {
     /// Zip the current directory and send it to the server
     Send {
         /// API key for authentication
-        #[arg(long, env = "OPTIMUS_API_KEY")]
+        #[arg(long)]
         api_key: String,
         
         /// Base URL for the server (without trailing slash)
@@ -103,12 +103,12 @@ fn create_zip_archive(compression: u8, format: &str) -> Result<PathBuf> {
     let options = FileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o755)
-        .compression_level(Some(compression));
+        .compression_level(Some(compression.into()));
     
     let mut zip = ZipWriter::new(file);
     
     // Common excluded directories and files
-    let mut excluded = vec![
+    let excluded = vec![
         ".git", 
         ".DS_Store", 
         "target",
