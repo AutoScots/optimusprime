@@ -11,6 +11,7 @@ A CLI tool for zipping directories and sending them to a server, particularly de
 - Competition submission tracking
 - Interactive confirmation based on remaining attempts
 - Support for different packaging formats
+- Self-update functionality to easily get the latest version
 - Easy to install and use
 
 ## Installation
@@ -127,15 +128,19 @@ All configuration options can be overridden via command line:
 optimus send --help
 ```
 
-Available options:
+Available options for `send` command:
 
 - `--config <PATH>`: Path to the configuration file (default: `submission.yml`)
 - `--api-key <KEY>`: API key for authentication (overrides config file)
 - `--competition-id <ID>`: Competition ID (overrides config file)
 - `--server <URL>`: Base URL for the server (overrides config file)
 - `--compression <LEVEL>`: Compression level (0-9, overrides config file)
-- `--force-format <FORMAT>`: Skip server check and force a specific format (repo or py) 
+- `--force-format <FORMAT>`: Skip server check and force a specific format (repo or py)
 - `--auto-confirm`: Auto-confirm submission without prompting
+
+For the `update` command:
+
+- `--force`: Force update without confirmation prompt
 
 ### Submission Formats
 
@@ -173,6 +178,18 @@ optimus send --force-format py --auto-confirm
 # Submit to a specific competition
 optimus send --competition-id "special-competition-456"
 ```
+
+### Update to Latest Version
+
+```bash
+# Check for updates and install if available
+optimus update
+
+# Force update without confirmation prompt
+optimus update --force
+```
+
+The update command works across platforms (Windows, macOS, Linux) and automatically selects the appropriate installation method based on your operating system. On Windows, it supports `.exe`, `.msi`, `.bat`, `.cmd`, and `.ps1` installers. On Unix-based systems (macOS, Linux), it supports `.sh`, `.bash`, and `.zsh` scripts.
 
 ## Server Example
 

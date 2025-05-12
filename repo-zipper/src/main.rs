@@ -3,11 +3,14 @@ use clap::{Parser, Subcommand};
 use dialoguer::{Confirm, theme::ColorfulTheme};
 use reqwest::blocking::{Client, multipart};
 use serde::{Deserialize, Serialize};
+use semver::Version;
 use std::env;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Read, Write, copy};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tempfile::tempdir;
 use walkdir::WalkDir;
 use zip::{write::FileOptions, ZipWriter};
 
@@ -66,6 +69,18 @@ struct CheckResponse {
     competition_name: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
+struct GithubRelease {
+    tag_name: String,
+    assets: Vec<GithubAsset>,
+}
+
+#[derive(Deserialize, Debug)]
+struct GithubAsset {
+    name: String,
+    browser_download_url: String,
+}
+
 #[derive(Parser, Debug)]
 #[clap(name = "optimus", about = "CLI tool to zip directories and submit them", author, version)]
 struct Cli {
@@ -80,45 +95,52 @@ enum Commands {
         /// Path to the submission.yml config file
         #[arg(long, default_value = "submission.yml")]
         config: String,
-        
+
         /// Competition ID (overrides config file)
         #[arg(long)]
         competition_id: Option<String>,
-        
+
         /// API key for authentication (overrides config file)
         #[arg(long)]
         api_key: Option<String>,
-        
+
         /// Base URL for the server (overrides config file)
         #[arg(long)]
         server: Option<String>,
-        
+
         /// Compression level (0-9, overrides config file)
         #[arg(long)]
         compression: Option<u8>,
-        
+
         /// Skip server check and force a specific format (repo or py) (overrides config file)
         #[arg(long)]
         force_format: Option<String>,
-        
+
         /// Auto-confirm submission without prompting (overrides config file)
         #[arg(long)]
         auto_confirm: bool,
     },
-    
+
     /// Initialize a new submission.yml configuration file
     Init {
         /// Path to create the submission.yml config file
         #[arg(long, default_value = "submission.yml")]
         config: String,
-        
+
         /// API key for authentication
         #[arg(long)]
         api_key: Option<String>,
-        
+
         /// Competition ID
         #[arg(long)]
         competition_id: Option<String>,
+    },
+
+    /// Check for updates and install the latest version
+    Update {
+        /// Force update without confirmation
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -396,12 +418,240 @@ fn send_zip_to_endpoint(zip_path: &Path, api_key: &str, submit_url: &str, compet
     Ok(())
 }
 
+/// Check for the latest version available on GitHub
+fn check_for_updates() -> Result<Option<(Version, String)>> {
+    let current_version = Version::parse(env!("CARGO_PKG_VERSION"))?;
+    println!("🔄 Checking for updates... Current version: {}", current_version);
+    
+    // Get the repository URL from Cargo.toml metadata
+    let repository = env!("CARGO_PKG_REPOSITORY")
+        .trim_end_matches(".git")
+        .trim_end_matches('/');
+    
+    // Extract owner and repo name from the URL
+    let repo_parts: Vec<&str> = repository.split('/').collect();
+    let (owner, repo) = if repo_parts.len() >= 2 {
+        (repo_parts[repo_parts.len() - 2], repo_parts[repo_parts.len() - 1])
+    } else {
+        return Err(anyhow::anyhow!("Invalid repository URL format in Cargo.toml"));
+    };
+    
+    let github_api_url = format!("https://api.github.com/repos/{}/{}/releases/latest", owner, repo);
+    println!("🔍 Checking GitHub API: {}", github_api_url);
+    
+    let client = Client::new();
+    let response = client.get(&github_api_url)
+        .header("User-Agent", "Optimus CLI")
+        .send()?;
+    
+    // Handle 404 status specifically (no releases found)
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        println!("❓ No official releases found for this project yet.");
+        return Ok(None);
+    } else if !response.status().is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to check for updates. Status: {}",
+            response.status()
+        ));
+    }
+    
+    let release: GithubRelease = response.json()?;
+    
+    // Strip 'v' prefix if present
+    let version_str = release.tag_name.trim_start_matches('v');
+    let latest_version = Version::parse(version_str)?;
+    
+    // Find the appropriate asset based on platform and preferred file types
+    let asset = if cfg!(windows) {
+        // For Windows, prefer .exe, .msi, .bat or .ps1 installers
+        release.assets.iter()
+            .find(|asset| asset.name.ends_with(".exe") || asset.name.ends_with(".msi"))
+            .or_else(|| release.assets.iter().find(|asset| asset.name.ends_with(".bat") || asset.name.ends_with(".cmd")))
+            .or_else(|| release.assets.iter().find(|asset| asset.name.ends_with(".ps1")))
+            .or_else(|| release.assets.iter().find(|asset| asset.name.ends_with(".zip")))
+    } else if cfg!(unix) {
+        // For Unix, prefer shell scripts
+        release.assets.iter()
+            .find(|asset| asset.name.contains("direct-install"))
+            .or_else(|| release.assets.iter().find(|asset| asset.name.ends_with(".sh")))
+            .or_else(|| release.assets.iter().find(|asset| asset.name.ends_with(".bash") || asset.name.ends_with(".zsh")))
+            .or_else(|| release.assets.iter().find(|asset| asset.name.ends_with(".tar.gz") || asset.name.ends_with(".tgz")))
+    } else {
+        // For other platforms, just try to find a common installer format
+        release.assets.iter()
+            .find(|asset| asset.name.contains("install") || asset.name.contains("setup"))
+    }
+    .ok_or_else(|| anyhow::anyhow!("No suitable installation file found for your platform in the latest release"))?;
+    
+    if latest_version > current_version {
+        println!("📦 New version available: {} (current: {})", latest_version, current_version);
+        Ok(Some((latest_version, asset.browser_download_url.clone())))
+    } else {
+        println!("✅ You have the latest version: {}", current_version);
+        Ok(None)
+    }
+}
+
+/// Download and install the latest version
+fn update_to_latest(download_url: &str, force: bool) -> Result<()> {
+    // Create a temporary directory to store the download
+    let temp_dir = tempdir()?;
+
+    // Get filename from URL
+    let url_parts: Vec<&str> = download_url.split('/').collect();
+    let filename = url_parts.last()
+        .ok_or_else(|| anyhow::anyhow!("Invalid download URL"))?;
+
+    let download_path = temp_dir.path().join(filename);
+
+    println!("📥 Downloading latest version from {}...", download_url);
+
+    // Download the installation file
+    let mut response = Client::new().get(download_url)
+        .header("User-Agent", "Optimus CLI")
+        .send()?;
+
+    let mut file = File::create(&download_path)?;
+    copy(&mut response, &mut file)?;
+
+    // Make shell scripts executable on Unix platforms
+    #[cfg(unix)]
+    if filename.ends_with(".sh") {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&download_path)?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&download_path, perms)?;
+    }
+
+    // Prompt for confirmation unless force flag is set
+    if !force {
+        let confirm = Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt("Ready to install the latest version. Continue?")
+            .default(true)
+            .interact()?;
+
+        if !confirm {
+            println!("❌ Update cancelled.");
+            return Ok(());
+        }
+    }
+
+    println!("🔄 Installing latest version...");
+
+    // Handle different file types for different platforms
+    #[cfg(unix)]
+    let result = handle_unix_update(&download_path, filename);
+
+    #[cfg(windows)]
+    let result = handle_windows_update(&download_path, filename);
+
+    // Use a generic fallback for other platforms
+    #[cfg(not(any(unix, windows)))]
+    let result = handle_generic_update(&download_path, filename);
+
+    result
+}
+
+#[cfg(unix)]
+fn handle_unix_update(download_path: &Path, filename: &str) -> Result<()> {
+    let status = if filename.ends_with(".sh") {
+        // Run the shell script directly
+        Command::new(download_path).status()?
+    } else if filename.ends_with(".bash") || filename.ends_with(".zsh") {
+        // Run with appropriate shell
+        let shell = if filename.ends_with(".bash") { "bash" } else { "zsh" };
+        Command::new(shell).arg(download_path).status()?
+    } else if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz") {
+        // For archives, ask the user to extract manually
+        println!("📦 Downloaded archive. Manual extraction and installation required.");
+        println!("   Download saved to: {}", download_path.display());
+        return Ok(());
+    } else {
+        // For any other file type, inform the user
+        println!("📄 Downloaded file: {}", download_path.display());
+        println!("   Manual installation required. Check the project documentation.");
+        return Ok(());
+    };
+
+    if status.success() {
+        println!("✅ Successfully updated to the latest version!");
+        println!("   Please restart your terminal or reload your shell for the changes to take effect.");
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Failed to install the latest version. Exit code: {}",
+            status.code().unwrap_or(-1)
+        ))
+    }
+}
+
+#[cfg(windows)]
+fn handle_windows_update(download_path: &Path, filename: &str) -> Result<()> {
+    let status = if filename.ends_with(".exe") {
+        // Run the installer executable
+        Command::new(download_path).status()?
+    } else if filename.ends_with(".msi") {
+        // Run the MSI installer
+        Command::new("msiexec").args(["/i", &download_path.to_string_lossy()]).status()?
+    } else if filename.ends_with(".bat") || filename.ends_with(".cmd") {
+        // Run Windows batch file
+        Command::new("cmd").args(["/C", &download_path.to_string_lossy()]).status()?
+    } else if filename.ends_with(".ps1") {
+        // Run PowerShell script
+        Command::new("powershell")
+            .args(["-ExecutionPolicy", "Bypass", "-File", &download_path.to_string_lossy()])
+            .status()?
+    } else if filename.ends_with(".zip") {
+        // For zip archives, give instructions
+        println!("📦 Downloaded archive. Manual extraction and installation required.");
+        println!("   Download saved to: {}", download_path.display());
+        println!("   You can extract this file and run any installation scripts inside.");
+        return Ok(());
+    } else {
+        // For any other file type
+        println!("📄 Downloaded file: {}", download_path.display());
+        println!("   Manual installation required. Check the project documentation.");
+        return Ok(());
+    };
+
+    if status.success() {
+        println!("✅ Successfully updated to the latest version!");
+        println!("   Please restart your command prompt or PowerShell for the changes to take effect.");
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Failed to install the latest version. Exit code: {}",
+            status.code().unwrap_or(-1)
+        ))
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn handle_generic_update(download_path: &Path, filename: &str) -> Result<()> {
+    // Generic fallback for any other platform
+    println!("📥 Downloaded update file: {}", download_path.display());
+    println!("⚠️ Automatic installation not supported on this platform.");
+    println!("   Please follow the manual installation instructions from the project documentation.");
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     
     match &cli.command {
         Commands::Init { config, api_key, competition_id } => {
             create_config_file(config, api_key.clone(), competition_id.clone())?;
+        },
+        
+        Commands::Update { force } => {
+            match check_for_updates()? {
+                Some((_, download_url)) => {
+                    update_to_latest(&download_url, *force)?;
+                },
+                None => {
+                    // No update available
+                },
+            }
         },
         
         Commands::Send { 
