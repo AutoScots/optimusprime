@@ -180,3 +180,22 @@ CLAUDE.md
 
 .zip
 .gz§
+submission.yml
+test-submission.yml
+py-format.yml
+no-attempts.yml
+
+# Node.js dependencies
+**/node_modules/
+
+# Server uploads
+server-example/uploads/
+
+# Rust build artifacts
+repo-zipper/target/
+
+# Temporary files
+**/.DS_Store
+**/.env
+**/*.tmp
+**/tmp/

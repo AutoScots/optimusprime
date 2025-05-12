@@ -22,6 +22,7 @@ const userSubmissions = new Map();
 const competitions = new Map([
   ['competition-123', { maxAttempts: 3, name: 'Demo Competition' }],
   ['competition-456', { maxAttempts: 5, name: 'Advanced Competition' }],
+  ['no-attempts', { maxAttempts: 0, name: 'Expired Competition' }],
 ]);
 
 // Track attempts per user per competition
@@ -97,31 +98,35 @@ function getRemainingAttempts(userId, competitionId) {
   return Math.max(0, maxAttempts - attemptsUsed);
 }
 
-// Check endpoint to determine which format to use and get remaining attempts
+// Check endpoint to determine which format to use and if submission is approved
 app.get('/check', authenticate, (req, res) => {
   const userId = getUserIdFromToken(req.apiKey);
   const competitionId = getCompetitionId(req);
-  
+
   // Get the last submission time for this user
   const lastSubmissionKey = `${userId}_${competitionId}`;
   const lastSubmission = userSubmissions.get(lastSubmissionKey);
-  
+
   // Get remaining attempts
   const remainingAttempts = getRemainingAttempts(userId, competitionId);
-  
-  // Determine which format to use 
+
+  // Determine which format to use
   // This could be based on user, competition, time, etc.
   let formatToUse = DEFAULT_FORMAT;
-  
+
   // For demo purposes, use different formats for different competitions
   if (competitionId === 'competition-456') {
     formatToUse = 'py';
   }
-  
+
+  // Determine if submission is approved based on remaining attempts
+  const submissionApproved = remainingAttempts > 0;
+
   console.log(`Check request from user ${userId} for competition ${competitionId}`);
-  console.log(`Format: ${formatToUse}, Remaining attempts: ${remainingAttempts}`);
-  
+  console.log(`Format: ${formatToUse}, Submission approved: ${submissionApproved}, Remaining attempts: ${remainingAttempts}`);
+
   return res.status(200).json({
+    submission_approved: submissionApproved,
     required_format: formatToUse,
     remaining_attempts: remainingAttempts,
     last_submission_by_user: lastSubmission ? Math.floor(lastSubmission / 1000) : null,

@@ -59,9 +59,11 @@ fn default_compression_level() -> u8 {
 
 #[derive(Deserialize, Debug)]
 struct CheckResponse {
+    submission_approved: bool,
     required_format: String,
     remaining_attempts: i32,
     last_submission_by_user: Option<u64>,
+    competition_name: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -185,23 +187,23 @@ fn create_config_file(config_path: &str, api_key: Option<String>, competition_id
     Ok(())
 }
 
-/// Check with the server for format requirements and remaining attempts
+/// Check with the server for submission approval and format requirements
 fn check_with_server(server_url: &str, api_key: &str, competition_id: Option<&str>) -> Result<CheckResponse> {
     let mut check_url = format!("{}/check", server_url);
-    
+
     // Add competition_id query parameter if available
     if let Some(comp_id) = competition_id {
         check_url = format!("{}?competition={}", check_url, comp_id);
     }
-    
+
     println!("🔍 Checking with server: {}", check_url);
-    
+
     let client = Client::new();
     let response = client.get(&check_url)
         .header("Authorization", format!("Bearer {}", api_key))
         .timeout(Duration::from_secs(10))
         .send()?;
-    
+
     if !response.status().is_success() {
         return Err(anyhow::anyhow!(
             "Failed to check with server. Status: {}, Body: {}",
@@ -209,25 +211,34 @@ fn check_with_server(server_url: &str, api_key: &str, competition_id: Option<&st
             response.text().unwrap_or_default()
         ));
     }
-    
+
     let check_response: CheckResponse = response.json()?;
-    
+
     // Print information about the server response
     println!("✅ Server requires format: {}", check_response.required_format);
-    println!("🔢 Remaining submission attempts: {}", check_response.remaining_attempts);
-    
+
+    if check_response.submission_approved {
+        println!("✅ Submission approved. Remaining attempts: {}", check_response.remaining_attempts);
+    } else {
+        println!("❌ Submission not approved. No remaining attempts.");
+    }
+
+    if let Some(competition_name) = &check_response.competition_name {
+        println!("🏆 Competition: {}", competition_name);
+    }
+
     if let Some(last_submission) = check_response.last_submission_by_user {
         let duration = SystemTime::now()
             .duration_since(UNIX_EPOCH + Duration::from_secs(last_submission))
             .unwrap_or(Duration::from_secs(0));
-        
+
         let hours = duration.as_secs() / 3600;
         let minutes = (duration.as_secs() % 3600) / 60;
         println!("📊 Last submission was {} hours and {} minutes ago", hours, minutes);
     } else {
         println!("📊 No previous submissions found");
     }
-    
+
     Ok(check_response)
 }
 
@@ -429,27 +440,33 @@ fn main() -> Result<()> {
                 println!("⚠️ Using format from config file: {}", config_format);
                 config_format.clone()
             } else {
-                // Contact the server to check the required format
+                // Contact the server to check for submission approval and format
                 let check_response = check_with_server(&server_url, &config_data.api_key, comp_id)?;
-                
-                // Prompt the user for confirmation based on remaining attempts
+
+                // Check if submission is approved
+                if !check_response.submission_approved {
+                    println!("❌ Submission not allowed. No remaining attempts.");
+                    return Ok(());
+                }
+
+                // Prompt the user for confirmation
                 if !auto_confirm_submission {
                     let confirm_msg = format!(
-                        "You have {} submission attempts remaining. Proceed with submission?",
+                        "Proceed with submission? You have {} attempts remaining.",
                         check_response.remaining_attempts
                     );
-                    
+
                     let confirmed = Confirm::with_theme(&ColorfulTheme::default())
                         .with_prompt(confirm_msg)
                         .default(true)
                         .interact()?;
-                    
+
                     if !confirmed {
                         println!("❌ Submission cancelled.");
                         return Ok(());
                     }
                 }
-                
+
                 check_response.required_format
             };
             
