@@ -1,0 +1,33 @@
+# Example submission.yml configuration file for Optimus Prime
+
+# API key for authentication (required)
+api_key: "your-api-key-here"
+
+# Competition ID (optional, can be overridden via command line)
+competition_id: "competition-123"
+
+# Submission format: 'repo' or 'py' (optional, will check with server if not specified)
+format: "repo"
+
+# Server URL (optional, defaults to http://localhost:3000)
+server_url: "http://localhost:3000"
+
+# Compression level (0-9, optional, default is 6)
+compression_level: 6
+
+# Excluded directories/files (optional, adds to default exclusions)
+exclude:
+  - ".git"
+  - ".DS_Store"
+  - "node_modules"
+  - "target"
+  - ".env"
+  - "venv"
+
+# User preferences (optional)
+preferences:
+  # Whether to auto-confirm submissions (optional, default is false)
+  auto_confirm: false
+  
+  # Whether to save submission history (optional, default is true)
+  save_history: true

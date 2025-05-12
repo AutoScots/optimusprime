@@ -48,8 +48,9 @@ rm -rf "$TMP_DIR"
 if command -v optimus &> /dev/null; then
     echo -e "${GREEN}✅ Optimus has been successfully installed!${NC}"
     echo -e "${BLUE}You can now use 'optimus send' to zip and send your directories.${NC}"
-    echo -e "${BLUE}Don't forget to set your API key:${NC}"
-    echo -e "${GREEN}export OPTIMUS_API_KEY=\"your-api-key\"${NC}"
+    echo -e "${YELLOW}Note: This is a legacy version of Optimus. ${NC}"
+    echo -e "${BLUE}For the latest version with configuration support, please use:${NC}"
+    echo -e "${GREEN}curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/install.sh | bash${NC}"
 else
     echo -e "${RED}❌ Installation failed. ${NC}"
     exit 1

@@ -16,19 +16,35 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// In-memory storage for user submissions
+// In-memory storage for user submissions and competitions
 // In a real app, this would be a database
 const userSubmissions = new Map();
+const competitions = new Map([
+  ['competition-123', { maxAttempts: 3, name: 'Demo Competition' }],
+  ['competition-456', { maxAttempts: 5, name: 'Advanced Competition' }],
+]);
+
+// Track attempts per user per competition
+const submissionAttempts = new Map(); // Map<userId_competitionId, count>
 
 // Set up multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, UPLOAD_DIR)
+    // Create a directory for the competition if specified
+    let targetDir = UPLOAD_DIR;
+    if (req.body.competition) {
+      targetDir = path.join(UPLOAD_DIR, req.body.competition);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+    }
+    cb(null, targetDir);
   },
   filename: function (req, file, cb) {
-    // Use original filename with timestamp to avoid conflicts
+    // Use original filename with timestamp and user ID to avoid conflicts
     const timestamp = Date.now();
-    cb(null, `${timestamp}-${file.originalname}`)
+    const userId = getUserIdFromToken(req.apiKey);
+    cb(null, `${timestamp}-${userId}-${file.originalname}`);
   }
 });
 
@@ -63,24 +79,53 @@ function getUserIdFromToken(token) {
   return token;
 }
 
-// Check endpoint to determine which format to use and get last submission time
+// Get competition ID from query parameter or use default
+function getCompetitionId(req) {
+  return req.query.competition || 'default';
+}
+
+// Get attempts remaining for a user in a competition
+function getRemainingAttempts(userId, competitionId) {
+  // Get competition info
+  const competition = competitions.get(competitionId);
+  const maxAttempts = competition ? competition.maxAttempts : 3; // Default to 3 if no competition found
+  
+  // Get attempts used
+  const key = `${userId}_${competitionId}`;
+  const attemptsUsed = submissionAttempts.get(key) || 0;
+  
+  return Math.max(0, maxAttempts - attemptsUsed);
+}
+
+// Check endpoint to determine which format to use and get remaining attempts
 app.get('/check', authenticate, (req, res) => {
   const userId = getUserIdFromToken(req.apiKey);
+  const competitionId = getCompetitionId(req);
   
   // Get the last submission time for this user
-  const lastSubmission = userSubmissions.get(userId);
+  const lastSubmissionKey = `${userId}_${competitionId}`;
+  const lastSubmission = userSubmissions.get(lastSubmissionKey);
   
-  // Determine which format to use (could be based on user, project, time, etc.)
-  // This is a simple example that alternates between 'repo' and 'py'
-  const now = Date.now();
-  const dayOfYear = Math.floor((now - new Date(now).setHours(0,0,0,0)) / 86400000);
-  const formatToUse = (dayOfYear % 2 === 0) ? 'repo' : 'py';
+  // Get remaining attempts
+  const remainingAttempts = getRemainingAttempts(userId, competitionId);
   
-  console.log(`Check request from user ${userId}, requesting format: ${formatToUse}`);
+  // Determine which format to use 
+  // This could be based on user, competition, time, etc.
+  let formatToUse = DEFAULT_FORMAT;
+  
+  // For demo purposes, use different formats for different competitions
+  if (competitionId === 'competition-456') {
+    formatToUse = 'py';
+  }
+  
+  console.log(`Check request from user ${userId} for competition ${competitionId}`);
+  console.log(`Format: ${formatToUse}, Remaining attempts: ${remainingAttempts}`);
   
   return res.status(200).json({
     required_format: formatToUse,
-    last_submission_by_user: lastSubmission ? Math.floor(lastSubmission / 1000) : null
+    remaining_attempts: remainingAttempts,
+    last_submission_by_user: lastSubmission ? Math.floor(lastSubmission / 1000) : null,
+    competition_name: competitions.get(competitionId)?.name || 'Unknown Competition'
   });
 });
 
@@ -91,12 +136,30 @@ app.post('/submit', authenticate, upload.single('file'), (req, res) => {
   }
   
   const userId = getUserIdFromToken(req.apiKey);
+  const competitionId = req.body.competition || 'default';
   const now = Date.now();
   
-  // Store the submission time for the user
-  userSubmissions.set(userId, now);
+  // Check if the user has attempts remaining
+  const remainingAttempts = getRemainingAttempts(userId, competitionId);
   
-  console.log(`Received file from user ${userId}: ${req.file.originalname} (${req.file.size} bytes)`);
+  if (remainingAttempts <= 0) {
+    return res.status(403).json({ 
+      error: 'No submission attempts remaining for this competition'
+    });
+  }
+  
+  // Increment the attempt counter
+  const attemptsKey = `${userId}_${competitionId}`;
+  const currentAttempts = submissionAttempts.get(attemptsKey) || 0;
+  submissionAttempts.set(attemptsKey, currentAttempts + 1);
+  
+  // Store the submission time for the user
+  const submissionKey = `${userId}_${competitionId}`;
+  userSubmissions.set(submissionKey, now);
+  
+  console.log(`Received file from user ${userId} for competition ${competitionId}`);
+  console.log(`File: ${req.file.originalname} (${req.file.size} bytes)`);
+  console.log(`Attempts used: ${currentAttempts + 1}, remaining: ${remainingAttempts - 1}`);
   
   // Process the file as needed
   // ...
@@ -105,8 +168,21 @@ app.post('/submit', authenticate, upload.single('file'), (req, res) => {
     message: 'File received successfully',
     filename: req.file.filename,
     size: req.file.size,
-    timestamp: now
+    timestamp: now,
+    competition: competitionId,
+    attempts_remaining: remainingAttempts - 1
   });
+});
+
+// Get competition info
+app.get('/competitions', authenticate, (req, res) => {
+  const compList = Array.from(competitions.entries()).map(([id, info]) => ({
+    id,
+    name: info.name,
+    max_attempts: info.maxAttempts
+  }));
+  
+  return res.status(200).json({ competitions: compList });
 });
 
 // Start the server
@@ -114,4 +190,5 @@ app.listen(PORT, () => {
   console.log(`Optimus server running on port ${PORT}`);
   console.log(`Check endpoint: http://localhost:${PORT}/check`);
   console.log(`Submit endpoint: http://localhost:${PORT}/submit`);
+  console.log(`Competitions endpoint: http://localhost:${PORT}/competitions`);
 });

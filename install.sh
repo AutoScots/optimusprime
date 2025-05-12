@@ -8,12 +8,12 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Installing Optimus Prime directly...${NC}"
+echo -e "${BLUE}Installing Optimus Prime...${NC}"
 
 # Check if git is installed
 if ! command -v git &> /dev/null; then
     echo -e "${YELLOW}Git is not installed. Installing it now...${NC}"
-
+    
     # Check the OS
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         # Linux - Try apt-get first (Debian/Ubuntu)
@@ -48,14 +48,14 @@ if ! command -v git &> /dev/null; then
         echo -e "${BLUE}Please install Git manually and try again.${NC}"
         exit 1
     fi
-
+    
     # Verify installation
     if ! command -v git &> /dev/null; then
         echo -e "${RED}Failed to install Git.${NC}"
         echo -e "${BLUE}Please install Git manually and try again.${NC}"
         exit 1
     fi
-
+    
     echo -e "${GREEN}Git has been successfully installed!${NC}"
 fi
 
@@ -96,6 +96,18 @@ echo -e "${BLUE}Cloning Optimus repository...${NC}"
 git clone --depth 1 https://github.com/AutoScots/optimusprime.git "$TMP_DIR/optimus"
 cd "$TMP_DIR/optimus/repo-zipper"
 
+# Fix the code issues
+echo -e "${BLUE}Fixing code issues...${NC}"
+
+# Use the updated Cargo.toml with the new dependencies
+# Update Cargo.toml if needed
+if ! grep -q "serde_yaml" Cargo.toml; then
+    echo -e "${BLUE}Adding required dependencies...${NC}"
+    cargo add serde_yaml --quiet
+    cargo add dialoguer --quiet 
+    cargo add dirs --quiet
+fi
+
 # Build and install
 echo -e "${BLUE}Building and installing Optimus...${NC}"
 cargo install --path .
@@ -108,12 +120,16 @@ rm -rf "$TMP_DIR"
 # Verify installation
 if command -v optimus &> /dev/null; then
     echo -e "${GREEN}✅ Optimus has been successfully installed!${NC}"
-    echo -e "${BLUE}You can now use 'optimus send' to zip and send your directories.${NC}"
-    echo -e "${YELLOW}Note: This is a legacy version of Optimus. ${NC}"
-    echo -e "${BLUE}For the latest version with configuration support, please use:${NC}"
-    echo -e "${GREEN}curl -sSL https://raw.githubusercontent.com/AutoScots/optimusprime/main/install.sh | bash${NC}"
+    echo -e "${BLUE}You can now use 'optimus' to zip and send your directories.${NC}"
+    echo -e "${BLUE}To get started, create a configuration file:${NC}"
+    echo -e "${GREEN}optimus init${NC}"
+    echo -e ""
+    echo -e "${BLUE}Then edit it to set your API key and preferences:${NC}"
+    echo -e "${GREEN}nano submission.yml${NC}"
+    echo -e ""
+    echo -e "${BLUE}Finally, send your directory:${NC}"
+    echo -e "${GREEN}optimus send${NC}"
 else
-    echo -e "${RED}❌ Installation failed. Please try installing manually with:${NC}"
-    echo -e "${GREEN}cd repo-zipper && cargo install --path .${NC}"
+    echo -e "${RED}❌ Installation failed. Please try installing manually with 'cargo install --git https://github.com/AutoScots/optimusprime.git --path repo-zipper'${NC}"
     exit 1
 fi
